@@ -20,7 +20,7 @@ import (
 )
 
 // CreatePodFromDaemonSetReplicaSet use to create a Pod from a ReplicaSet instance and a specific Node name.
-func CreatePodFromDaemonSetReplicaSet(scheme *runtime.Scheme, replicaset *datadoghqv1alpha1.ExtendedDaemonSetReplicaSet, node *corev1.Node, edsNode *datadoghqv1alpha1.ExtendedDaemonsetSetting, addNodeAffinity bool) (*corev1.Pod, error) {
+func CreatePodFromDaemonSetReplicaSet(scheme *runtime.Scheme, replicaset *datadoghqv1alpha1.ExtendedDaemonSetReplicaSet, node *corev1.Node, edsNode *datadoghqv1alpha1.ExtendedDaemonsetSetting, addNodeAffinity bool, omitTolerationKeys []string) (*corev1.Pod, error) {
 	var err error
 	templateCopy := replicaset.Spec.Template.DeepCopy()
 	{
@@ -41,7 +41,7 @@ func CreatePodFromDaemonSetReplicaSet(scheme *runtime.Scheme, replicaset *datado
 	templateCopy.ObjectMeta.Annotations[datadoghqv1alpha1.MD5ExtendedDaemonSetAnnotationKey] = replicaset.Spec.TemplateGeneration
 	templateCopy.ObjectMeta.Annotations[DaemonsetClusterAutoscalerPodAnnotationKey] = "true"
 
-	templateCopy.Spec.Tolerations = append(templateCopy.Spec.Tolerations, StandardDaemonSetTolerations...)
+	templateCopy.Spec.Tolerations = append(templateCopy.Spec.Tolerations, OmitTolerations(StandardDaemonSetTolerations, omitTolerationKeys)...)
 
 	overwriteResourcesFromEdsNode(templateCopy, edsNode)
 
@@ -70,6 +70,25 @@ func CreatePodFromDaemonSetReplicaSet(scheme *runtime.Scheme, replicaset *datado
 	}
 
 	return pod, err
+}
+
+// OmitTolerations returns the subset of tolerations whose Key is not in omitKeys.
+// If omitKeys is empty, all tolerations are returned unchanged.
+func OmitTolerations(tolerations []corev1.Toleration, omitKeys []string) []corev1.Toleration {
+	if len(omitKeys) == 0 {
+		return tolerations
+	}
+	excluded := make(map[string]struct{}, len(omitKeys))
+	for _, key := range omitKeys {
+		excluded[key] = struct{}{}
+	}
+	var result []corev1.Toleration
+	for _, t := range tolerations {
+		if _, ok := excluded[t.Key]; !ok {
+			result = append(result, t)
+		}
+	}
+	return result
 }
 
 func overwriteResourcesFromEdsNode(template *corev1.PodTemplateSpec, edsNode *datadoghqv1alpha1.ExtendedDaemonsetSetting) {

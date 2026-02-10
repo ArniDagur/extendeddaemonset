@@ -153,7 +153,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, request reconcile.Request) (
 		reqLogger.V(1).Info("Delay pods creation", "deplay:", requeueAfter, "since", now.Sub(lastPodDeletionCondition.LastUpdateTime.Time))
 		result.RequeueAfter = requeueAfter
 	} else {
-		errs = append(errs, createPods(reqLogger, r.client, r.scheme, r.options.IsNodeAffinitySupported, replicaSetInstance, strategyResult.PodsToCreate)...)
+		errs = append(errs, createPods(reqLogger, r.client, r.scheme, r.options.IsNodeAffinitySupported, replicaSetInstance, strategyResult.PodsToCreate, daemonsetInstance.Spec.OmitTolerationKeys)...)
 		if len(strategyResult.PodsToCreate) > 0 {
 			conditions.UpdateExtendedDaemonSetReplicaSetStatusCondition(newStatus, now, datadoghqv1alpha1.ConditionTypePodCreation, corev1.ConditionTrue, "", "pods created", false, true)
 		}
@@ -202,7 +202,7 @@ func (r *Reconciler) buildStrategyParams(logger logr.Logger, daemonset *datadogh
 	}
 
 	// Associate Pods to Nodes
-	strategyParams.NodeByName, strategyParams.PodByNodeName, strategyParams.PodToCleanUp, strategyParams.UnscheduledPods = r.FilterAndMapPodsByNode(logger.WithValues("status", string(rsStatus)), replicaset, nodeList, podList, nodesFilter)
+	strategyParams.NodeByName, strategyParams.PodByNodeName, strategyParams.PodToCleanUp, strategyParams.UnscheduledPods = r.FilterAndMapPodsByNode(logger.WithValues("status", string(rsStatus)), replicaset, nodeList, podList, nodesFilter, daemonset.Spec.OmitTolerationKeys)
 
 	return strategyParams, nil
 }

@@ -30,6 +30,15 @@ type ExtendedDaemonSetSpec struct {
 
 	// Daemonset deployment strategy.
 	Strategy ExtendedDaemonSetSpecStrategy `json:"strategy"`
+
+	// A list of toleration keys from the standard DaemonSet tolerations to omit
+	// when creating pods. By default, the EDS controller adds all standard
+	// DaemonSet tolerations (node.kubernetes.io/not-ready, unreachable,
+	// disk-pressure, memory-pressure, unschedulable, network-unavailable).
+	// Specifying keys here will prevent those tolerations from being added.
+	// +optional
+	// +listType=set
+	OmitTolerationKeys []string `json:"omitTolerationKeys,omitempty"`
 }
 
 // ExtendedDaemonSetSpecStrategy defines the deployment strategy of ExtendedDaemonSet.

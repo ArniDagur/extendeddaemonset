@@ -177,3 +177,65 @@ func Test_overwriteResourcesFromEdsNode(t *testing.T) {
 	assert.NotEqual(t, templateCopy, templateOriginal)
 	assert.Equal(t, resourcesRef, templateOriginal.Spec.Containers[0].Resources.Requests)
 }
+
+func TestOmitTolerations(t *testing.T) {
+	tests := []struct {
+		name     string
+		omitKeys []string
+		want     []corev1.Toleration
+	}{
+		{
+			name:     "nil omit returns all",
+			omitKeys: nil,
+			want:     StandardDaemonSetTolerations,
+		},
+		{
+			name:     "empty omit returns all",
+			omitKeys: []string{},
+			want:     StandardDaemonSetTolerations,
+		},
+		{
+			name:     "omit one key",
+			omitKeys: []string{"node.kubernetes.io/not-ready"},
+			want: []corev1.Toleration{
+				{Key: "node.kubernetes.io/unreachable", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoExecute},
+				{Key: "node.kubernetes.io/disk-pressure", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "node.kubernetes.io/memory-pressure", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "node.kubernetes.io/unschedulable", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "node.kubernetes.io/network-unavailable", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+			},
+		},
+		{
+			name:     "omit multiple keys",
+			omitKeys: []string{"node.kubernetes.io/not-ready", "node.kubernetes.io/disk-pressure", "node.kubernetes.io/network-unavailable"},
+			want: []corev1.Toleration{
+				{Key: "node.kubernetes.io/unreachable", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoExecute},
+				{Key: "node.kubernetes.io/memory-pressure", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+				{Key: "node.kubernetes.io/unschedulable", Operator: corev1.TolerationOpExists, Effect: corev1.TaintEffectNoSchedule},
+			},
+		},
+		{
+			name:     "omit all keys",
+			omitKeys: []string{
+				"node.kubernetes.io/not-ready",
+				"node.kubernetes.io/unreachable",
+				"node.kubernetes.io/disk-pressure",
+				"node.kubernetes.io/memory-pressure",
+				"node.kubernetes.io/unschedulable",
+				"node.kubernetes.io/network-unavailable",
+			},
+			want: nil,
+		},
+		{
+			name:     "omit non-existent key",
+			omitKeys: []string{"node.kubernetes.io/does-not-exist"},
+			want:         StandardDaemonSetTolerations,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := OmitTolerations(StandardDaemonSetTolerations, tt.omitKeys)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}

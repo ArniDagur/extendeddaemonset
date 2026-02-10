@@ -483,7 +483,7 @@ func TestFilterAndMapPodsByNode(t *testing.T) {
 			}
 			reqLogger := log.WithValues("test:", tt.name)
 
-			gotNodeByName, gotPodByNode, gotPodToDelete, gotUnscheduledPods := r.FilterAndMapPodsByNode(reqLogger, tt.args.replicaset, tt.args.nodeList, tt.args.podList, tt.args.ignoreNodes)
+			gotNodeByName, gotPodByNode, gotPodToDelete, gotUnscheduledPods := r.FilterAndMapPodsByNode(reqLogger, tt.args.replicaset, tt.args.nodeList, tt.args.podList, tt.args.ignoreNodes, nil)
 			if diff := cmp.Diff(tt.wantNodeByName, gotNodeByName); diff != "" {
 				t.Errorf("FilterAndMapPodsByNode() gotNodeByName mismatch (-want +got):\n%s", diff)
 			}
