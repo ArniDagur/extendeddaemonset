@@ -79,8 +79,8 @@ spec:
                 description: |-
                   A list of toleration keys from the standard DaemonSet tolerations to omit
                   when creating pods. By default, the EDS controller adds all standard
-                  DaemonSet tolerations (node.kubernetes.io/not-ready, unreachable,
-                  disk-pressure, memory-pressure, unschedulable, network-unavailable).
+                  DaemonSet tolerations (node.kubernetes.io/{not-ready, unreachable,
+                  disk-pressure, memory-pressure, unschedulable, network-unavailable}).
                   Specifying keys here will prevent those tolerations from being added.
                 items:
                   type: string
