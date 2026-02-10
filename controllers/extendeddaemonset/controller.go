@@ -313,7 +313,7 @@ func (r *Reconciler) updateInstanceWithCurrentRS(logger logr.Logger, now time.Ti
 
 func (r *Reconciler) selectNodes(logger logr.Logger, daemonset *datadoghqv1alpha1.ExtendedDaemonSet, daemonsetSpec *datadoghqv1alpha1.ExtendedDaemonSetSpec, replicaset *datadoghqv1alpha1.ExtendedDaemonSetReplicaSet, canaryStatus *datadoghqv1alpha1.ExtendedDaemonSetStatusCanary) error {
 	// create a Fake pod from the current replicaset.spec.template
-	newPod, _ := podutils.CreatePodFromDaemonSetReplicaSet(r.scheme, replicaset, nil, nil, false, daemonsetSpec.OmitTolerationKeys)
+	newPod, _ := podutils.CreatePodFromDaemonSetReplicaSet(r.scheme, replicaset, nil, nil, false)
 
 	// Get list of pods in extendeddaemonset
 	podList := &corev1.PodList{}
@@ -565,8 +565,9 @@ func newReplicaSetFromInstance(daemonset *datadoghqv1alpha1.ExtendedDaemonSet) (
 			Annotations:  daemonset.Annotations,
 		},
 		Spec: datadoghqv1alpha1.ExtendedDaemonSetReplicaSetSpec{
-			Selector: daemonset.Spec.Selector.DeepCopy(),
-			Template: *daemonset.Spec.Template.DeepCopy(),
+			Selector:           daemonset.Spec.Selector.DeepCopy(),
+			Template:           *daemonset.Spec.Template.DeepCopy(),
+			OmitTolerationKeys: daemonset.Spec.OmitTolerationKeys,
 		},
 	}
 

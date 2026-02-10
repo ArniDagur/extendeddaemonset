@@ -68,6 +68,14 @@ spec:
             description: ExtendedDaemonSetReplicaSetSpec defines the desired state
               of ExtendedDaemonSetReplicaSet
             properties:
+              omitTolerationKeys:
+                description: |-
+                  A list of toleration keys from the standard DaemonSet tolerations to omit
+                  when creating pods. Propagated from the parent ExtendedDaemonSet spec.
+                items:
+                  type: string
+                type: array
+                x-kubernetes-list-type: set
               selector:
                 description: |-
                   A label query over pods that are managed by the daemon set.

@@ -28,6 +28,12 @@ type ExtendedDaemonSetReplicaSetSpec struct {
 	// Populated by the system. It can be set only during the creation.
 	// +optional
 	TemplateGeneration string `json:"templateGeneration,omitempty"`
+
+	// A list of toleration keys from the standard DaemonSet tolerations to omit
+	// when creating pods. Propagated from the parent ExtendedDaemonSet spec.
+	// +optional
+	// +listType=set
+	OmitTolerationKeys []string `json:"omitTolerationKeys,omitempty"`
 }
 
 // ExtendedDaemonSetReplicaSetSpecStrategy defines the desired state of ExtendedDaemonSet

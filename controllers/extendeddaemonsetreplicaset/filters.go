@@ -29,7 +29,7 @@ func init() {
 // FilterAndMapPodsByNode is used to map pods by associated node. It also returns the list of pods that
 // should be deleted (not needed anymore), and pods that are not scheduled yet (created but not scheduled).
 func (r *Reconciler) FilterAndMapPodsByNode(
-	logger logr.Logger, replicaset *datadoghqv1alpha1.ExtendedDaemonSetReplicaSet, nodeList *strategy.NodeList, podList *corev1.PodList, ignoreNodes []string, omitTolerationKeys []string,
+	logger logr.Logger, replicaset *datadoghqv1alpha1.ExtendedDaemonSetReplicaSet, nodeList *strategy.NodeList, podList *corev1.PodList, ignoreNodes []string,
 ) (
 	nodesByName map[string]*strategy.NodeItem, podsByNode map[*strategy.NodeItem]*corev1.Pod, podsToDelete, unscheduledPods []*corev1.Pod,
 ) {
@@ -41,7 +41,7 @@ func (r *Reconciler) FilterAndMapPodsByNode(
 
 	// Create a fake pod from the current replicaset.spec.template
 	// Use this pod to check fitness of nodes in nodeList
-	newPod, _ := podutils.CreatePodFromDaemonSetReplicaSet(nil, replicaset, nil, nil, false, omitTolerationKeys)
+	newPod, _ := podutils.CreatePodFromDaemonSetReplicaSet(nil, replicaset, nil, nil, false)
 	podsByNodeName := make(map[string][]*corev1.Pod)
 	nodesByName = make(map[string]*strategy.NodeItem)
 	for id := range nodeList.Items {

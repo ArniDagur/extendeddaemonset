@@ -20,7 +20,7 @@ import (
 )
 
 // CreatePodFromDaemonSetReplicaSet use to create a Pod from a ReplicaSet instance and a specific Node name.
-func CreatePodFromDaemonSetReplicaSet(scheme *runtime.Scheme, replicaset *datadoghqv1alpha1.ExtendedDaemonSetReplicaSet, node *corev1.Node, edsNode *datadoghqv1alpha1.ExtendedDaemonsetSetting, addNodeAffinity bool, omitTolerationKeys []string) (*corev1.Pod, error) {
+func CreatePodFromDaemonSetReplicaSet(scheme *runtime.Scheme, replicaset *datadoghqv1alpha1.ExtendedDaemonSetReplicaSet, node *corev1.Node, edsNode *datadoghqv1alpha1.ExtendedDaemonsetSetting, addNodeAffinity bool) (*corev1.Pod, error) {
 	var err error
 	templateCopy := replicaset.Spec.Template.DeepCopy()
 	{
@@ -41,7 +41,7 @@ func CreatePodFromDaemonSetReplicaSet(scheme *runtime.Scheme, replicaset *datado
 	templateCopy.ObjectMeta.Annotations[datadoghqv1alpha1.MD5ExtendedDaemonSetAnnotationKey] = replicaset.Spec.TemplateGeneration
 	templateCopy.ObjectMeta.Annotations[DaemonsetClusterAutoscalerPodAnnotationKey] = "true"
 
-	templateCopy.Spec.Tolerations = append(templateCopy.Spec.Tolerations, OmitTolerations(StandardDaemonSetTolerations, omitTolerationKeys)...)
+	templateCopy.Spec.Tolerations = append(templateCopy.Spec.Tolerations, OmitTolerations(StandardDaemonSetTolerations, replicaset.Spec.OmitTolerationKeys)...)
 
 	overwriteResourcesFromEdsNode(templateCopy, edsNode)
 
