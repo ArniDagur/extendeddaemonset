@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/extendeddaemonset/controllers/extendeddaemonsetreplicaset/conditions"
 	"github.com/DataDog/extendeddaemonset/controllers/extendeddaemonsetreplicaset/strategy"
 	"github.com/DataDog/extendeddaemonset/controllers/testutils"
+	"github.com/DataDog/extendeddaemonset/pkg/controller/utils/pod"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -459,6 +460,174 @@ var _ = Describe("ExtendedDaemonSet Rollout Freeze", func() {
 			)
 
 			Expect(k8sClient.Delete(context.Background(), extraNode)).Should(Succeed())
+		})
+	})
+})
+
+var _ = Describe("ExtendedDaemonSet OmitTolerationKeys", func() {
+	const timeout = time.Second * 30
+	const interval = time.Second * 2
+
+	intString10 := intstr.FromInt(10)
+	reconcileFrequency := &metav1.Duration{Duration: time.Millisecond * 100}
+	namespace := testConfig.namespace
+	ctx := context.Background()
+
+	Context("Initial deployment without omitTolerationKeys", func() {
+		var firstERSName string
+		name := "eds-omit-tol"
+		key := types.NamespacedName{
+			Namespace: namespace,
+			Name:      name,
+		}
+
+		It("Should deploy with all standard tolerations", func() {
+			edsOptions := &testutils.NewExtendedDaemonsetOptions{
+				CanaryStrategy: nil,
+				RollingUpdate: &datadoghqv1alpha1.ExtendedDaemonSetSpecStrategyRollingUpdate{
+					MaxPodSchedulerFailure: &intString10,
+					MaxUnavailable:         &intString10,
+					MaxParallelPodCreation: datadoghqv1alpha1.NewInt32(20),
+					SlowStartIntervalDuration: &metav1.Duration{
+						Duration: 1 * time.Millisecond,
+					},
+					SlowStartAdditiveIncrease: &intString10,
+				},
+				ReconcileFrequency: reconcileFrequency,
+			}
+			eds := testutils.NewExtendedDaemonset(namespace, name, "registry.k8s.io/pause:latest", edsOptions)
+			Expect(k8sClient.Create(ctx, eds)).Should(Succeed())
+
+			eds = &datadoghqv1alpha1.ExtendedDaemonSet{}
+			Eventually(withEDS(key, eds, func() bool {
+				return eds.Status.ActiveReplicaSet != ""
+			}), timeout, interval).Should(BeTrue(), func() string {
+				return fmt.Sprintf(
+					"ActiveReplicaSet should be set: %#v",
+					eds.Status,
+				)
+			},
+			)
+
+			firstERSName = eds.Status.ActiveReplicaSet
+
+			ers := &datadoghqv1alpha1.ExtendedDaemonSetReplicaSet{}
+			erskey := types.NamespacedName{
+				Namespace: namespace,
+				Name:      firstERSName,
+			}
+			Eventually(withERS(erskey, ers, func() bool {
+				return ers.Status.Desired == ers.Status.Current
+			}), timeout, interval).Should(BeTrue(), func() string {
+				return fmt.Sprintf(
+					"ers.Status.Desired should be equal to ers.Status.Current, status: %#v",
+					ers.Status,
+				)
+			},
+			)
+
+			Expect(ers.Spec.OmitTolerationKeys).To(BeEmpty())
+
+			podList := &corev1.PodList{}
+			listOptions := []client.ListOption{
+				client.InNamespace(namespace),
+				client.MatchingLabels{
+					"extendeddaemonset.datadoghq.com/name": name,
+				},
+			}
+			Eventually(withList(listOptions, podList, "pods", func() bool {
+				return len(podList.Items) == fakeNodesCount
+			}), timeout, interval).Should(BeTrue(), func() string {
+				return fmt.Sprintf(
+					"Should get all the pods, got: %d",
+					len(podList.Items),
+				)
+			},
+			)
+
+			for _, p := range podList.Items {
+				for _, stdTol := range pod.StandardDaemonSetTolerations {
+					Expect(p.Spec.Tolerations).To(ContainElement(stdTol))
+				}
+			}
+		})
+
+		It("Should create a new ERS when omitTolerationKeys is set", func() {
+			omitKeys := []string{
+				"node.kubernetes.io/not-ready",
+				"node.kubernetes.io/disk-pressure",
+			}
+
+			eds := &datadoghqv1alpha1.ExtendedDaemonSet{}
+			Expect(k8sClient.Get(ctx, key, eds)).Should(Succeed())
+			eds.Spec.OmitTolerationKeys = omitKeys
+			Expect(k8sClient.Update(ctx, eds)).Should(Succeed())
+
+			eds = &datadoghqv1alpha1.ExtendedDaemonSet{}
+			Eventually(withEDS(key, eds, func() bool {
+				return eds.Status.ActiveReplicaSet != "" && eds.Status.ActiveReplicaSet != firstERSName
+			}), timeout, interval).Should(BeTrue(), func() string {
+				return fmt.Sprintf(
+					"ActiveReplicaSet should be updated: %#v, old ers: %s",
+					eds.Status,
+					firstERSName,
+				)
+			},
+			)
+
+			newERSName := eds.Status.ActiveReplicaSet
+
+			ers := &datadoghqv1alpha1.ExtendedDaemonSetReplicaSet{}
+			erskey := types.NamespacedName{
+				Namespace: namespace,
+				Name:      newERSName,
+			}
+			Eventually(withERS(erskey, ers, func() bool {
+				return ers.Status.Desired == ers.Status.Current
+			}), timeout, interval).Should(BeTrue(), func() string {
+				return fmt.Sprintf(
+					"ers.Status.Desired should be equal to ers.Status.Current, status: %#v",
+					ers.Status,
+				)
+			},
+			)
+
+			Expect(ers.Spec.OmitTolerationKeys).To(ConsistOf(omitKeys))
+
+			podList := &corev1.PodList{}
+			listOptions := []client.ListOption{
+				client.InNamespace(namespace),
+				client.MatchingLabels{
+					datadoghqv1alpha1.ExtendedDaemonSetNameLabelKey:          name,
+					datadoghqv1alpha1.ExtendedDaemonSetReplicaSetNameLabelKey: newERSName,
+				},
+			}
+			Eventually(withList(listOptions, podList, "new ERS pods", func() bool {
+				return len(podList.Items) == fakeNodesCount
+			}), timeout, interval).Should(BeTrue(), func() string {
+				return fmt.Sprintf(
+					"Should get all the pods for new ERS, got: %d",
+					len(podList.Items),
+				)
+			},
+			)
+
+			omitSet := map[string]struct{}{}
+			for _, k := range omitKeys {
+				omitSet[k] = struct{}{}
+			}
+			expectedTolerations := pod.OmitTolerations(pod.StandardDaemonSetTolerations, omitKeys)
+
+			for _, p := range podList.Items {
+				for _, tol := range expectedTolerations {
+					Expect(p.Spec.Tolerations).To(ContainElement(tol))
+				}
+				for _, omitKey := range omitKeys {
+					for _, tol := range p.Spec.Tolerations {
+						Expect(tol.Key).ShouldNot(Equal(omitKey))
+					}
+				}
+			}
 		})
 	})
 })

@@ -23,6 +23,7 @@ type NewExtendedDaemonsetOptions struct {
 	CanaryStrategy     *datadoghqv1alpha1.ExtendedDaemonSetSpecStrategyCanary
 	RollingUpdate      *datadoghqv1alpha1.ExtendedDaemonSetSpecStrategyRollingUpdate
 	ReconcileFrequency *metav1.Duration
+	OmitTolerationKeys []string
 }
 
 // NewExtendedDaemonset returns new ExtendedDaemonSet instance.
@@ -87,6 +88,10 @@ func NewExtendedDaemonset(ns, name, image string, options *NewExtendedDaemonsetO
 
 		if options.ReconcileFrequency != nil {
 			newDaemonset.Spec.Strategy.ReconcileFrequency = options.ReconcileFrequency
+		}
+
+		if len(options.OmitTolerationKeys) > 0 {
+			newDaemonset.Spec.OmitTolerationKeys = options.OmitTolerationKeys
 		}
 	}
 
