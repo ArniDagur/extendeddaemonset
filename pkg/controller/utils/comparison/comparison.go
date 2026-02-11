@@ -23,14 +23,33 @@ import (
 	datadoghqv1alpha1 "github.com/DataDog/extendeddaemonset/api/v1alpha1"
 )
 
-// IsReplicaSetUpToDate returns true if the ExtendedDaemonSetReplicaSet is up to date with the ExtendedDaemonSet pod template.
+// IsReplicaSetUpToDate returns true if the ExtendedDaemonSetReplicaSet is up to date with the ExtendedDaemonSet spec.
 func IsReplicaSetUpToDate(rs *datadoghqv1alpha1.ExtendedDaemonSetReplicaSet, daemonset *datadoghqv1alpha1.ExtendedDaemonSet) bool {
 	hash, err := GenerateMD5PodTemplateSpec(&daemonset.Spec.Template)
 	if err != nil {
 		return false
 	}
+	if !ComparePodTemplateSpecMD5Hash(hash, rs) {
+		return false
+	}
+	if !stringSlicesEqual(daemonset.Spec.OmitTolerationKeys, rs.Spec.OmitTolerationKeys) {
+		return false
+	}
+	return true
+}
 
-	return ComparePodTemplateSpecMD5Hash(hash, rs)
+// stringSlicesEqual reports whether two string slices are equal.
+// nil and empty slices are considered equal.
+func stringSlicesEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // ComparePodTemplateSpecMD5Hash used to compare a md5 hash with the one setted in Deployment annotation.

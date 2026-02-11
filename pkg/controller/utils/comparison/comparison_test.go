@@ -124,6 +124,91 @@ func TestSetMD5PodTemplateSpecAnnotation(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestIsReplicaSetUpToDate_OmitTolerationKeys(t *testing.T) {
+	ds := &datadoghqv1alpha1.ExtendedDaemonSet{}
+	ds = datadoghqv1alpha1.DefaultExtendedDaemonSet(ds, datadoghqv1alpha1.ExtendedDaemonSetSpecStrategyCanaryValidationModeAuto)
+
+	templateHash, err := GenerateMD5PodTemplateSpec(&ds.Spec.Template)
+	require.NoError(t, err)
+
+	makeRS := func(omitKeys []string) *datadoghqv1alpha1.ExtendedDaemonSetReplicaSet {
+		return &datadoghqv1alpha1.ExtendedDaemonSetReplicaSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					string(datadoghqv1alpha1.MD5ExtendedDaemonSetAnnotationKey): templateHash,
+				},
+			},
+			Spec: datadoghqv1alpha1.ExtendedDaemonSetReplicaSetSpec{
+				OmitTolerationKeys: omitKeys,
+			},
+		}
+	}
+
+	tests := []struct {
+		name        string
+		edsOmitKeys []string
+		ersOmitKeys []string
+		want        bool
+	}{
+		{
+			name:        "both nil, up to date",
+			edsOmitKeys: nil,
+			ersOmitKeys: nil,
+			want:        true,
+		},
+		{
+			name:        "nil vs empty, up to date (no spurious rollout)",
+			edsOmitKeys: nil,
+			ersOmitKeys: []string{},
+			want:        true,
+		},
+		{
+			name:        "empty vs nil, up to date (no spurious rollout)",
+			edsOmitKeys: []string{},
+			ersOmitKeys: nil,
+			want:        true,
+		},
+		{
+			name:        "same keys, up to date",
+			edsOmitKeys: []string{"node.kubernetes.io/not-ready"},
+			ersOmitKeys: []string{"node.kubernetes.io/not-ready"},
+			want:        true,
+		},
+		{
+			name:        "eds adds a key, not up to date",
+			edsOmitKeys: []string{"node.kubernetes.io/not-ready"},
+			ersOmitKeys: nil,
+			want:        false,
+		},
+		{
+			name:        "eds removes a key, not up to date",
+			edsOmitKeys: nil,
+			ersOmitKeys: []string{"node.kubernetes.io/not-ready"},
+			want:        false,
+		},
+		{
+			name:        "different keys, not up to date",
+			edsOmitKeys: []string{"node.kubernetes.io/not-ready"},
+			ersOmitKeys: []string{"node.kubernetes.io/disk-pressure"},
+			want:        false,
+		},
+		{
+			name:        "different order, not up to date",
+			edsOmitKeys: []string{"node.kubernetes.io/not-ready", "node.kubernetes.io/disk-pressure"},
+			ersOmitKeys: []string{"node.kubernetes.io/disk-pressure", "node.kubernetes.io/not-ready"},
+			want:        false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ds.Spec.OmitTolerationKeys = tt.edsOmitKeys
+			rs := makeRS(tt.ersOmitKeys)
+			got := IsReplicaSetUpToDate(rs, ds)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func Test_StringsContains(t *testing.T) {
 	tests := []struct {
 		name string
