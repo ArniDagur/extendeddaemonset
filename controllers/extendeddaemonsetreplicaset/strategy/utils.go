@@ -25,6 +25,10 @@ import (
 )
 
 func compareCurrentPodWithNewPod(params *Parameters, pod *corev1.Pod, node *NodeItem) bool {
+	// check that the pod belongs to this replicaset
+	if pod.Labels[datadoghqv1alpha1.ExtendedDaemonSetReplicaSetNameLabelKey] != params.Replicaset.Name {
+		return false
+	}
 	// check that the pod corresponds to the replicaset. if not return false
 	if !compareSpecTemplateMD5Hash(params.Replicaset.Spec.TemplateGeneration, pod) {
 		return false
