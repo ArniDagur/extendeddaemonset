@@ -38,6 +38,10 @@ func ManageDeployment(client runtimeclient.Client, daemonset *datadoghqv1alpha1.
 	conditions.UpdateExtendedDaemonSetReplicaSetStatusCondition(params.NewStatus, metaNow, datadoghqv1alpha1.ConditionTypeRolloutFrozen, conditions.BoolToCondition(result.IsFrozen), "", "", false, false)
 	conditions.UpdateExtendedDaemonSetReplicaSetStatusCondition(params.NewStatus, metaNow, datadoghqv1alpha1.ConditionTypeActive, conditions.BoolToCondition(!result.IsPaused && !result.IsFrozen), "", "", false, false)
 
+	// Snapshot NewStatus early so that every return path has a valid status.
+	// The final status fields (Desired, Ready, etc.) are overwritten below on the happy path.
+	result.NewStatus = params.NewStatus.DeepCopy()
+
 	// Remove canary nodes if defined.
 	for _, nodeName := range params.CanaryNodes {
 		delete(params.PodByNodeName, params.NodeByName[nodeName])
