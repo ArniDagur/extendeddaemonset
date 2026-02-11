@@ -301,6 +301,55 @@ func TestManageDeployment(t *testing.T) {
 	}
 }
 
+func TestManageDeployment_ErrorReturnsValidStatus(t *testing.T) {
+	// Regression test: ManageDeployment must always return a Result with a
+	// non-nil NewStatus, even on early-return error paths.  Before the fix
+	// the caller in controller.go would dereference result.NewStatus (nil)
+	// and panic.  The scenario below mirrors the production crash: an EDS
+	// whose MaxUnavailable is a bare string (not a valid percentage or int)
+	// causes GetScaledValueFromIntOrPercent to fail, triggering an early
+	// return.
+	now := time.Now()
+	metaNow := metav1.NewTime(now)
+
+	logf.SetLogger(zap.New())
+	testLogger := logf.Log.WithName("test")
+
+	// Strategy with an invalid MaxUnavailable — a bare string that is
+	// neither an integer nor a "N%" percentage.
+	badRollingUpdate := datadoghqv1alpha1.DefaultExtendedDaemonSetSpecStrategyRollingUpdate(
+		&datadoghqv1alpha1.ExtendedDaemonSetSpecStrategyRollingUpdate{
+			MaxUnavailable: intstr.ValueOrDefault(nil, intstr.FromString("invalid")),
+		},
+	)
+
+	params := &Parameters{
+		Logger:    testLogger,
+		NewStatus: &datadoghqv1alpha1.ExtendedDaemonSetReplicaSetStatus{},
+		Strategy: &datadoghqv1alpha1.ExtendedDaemonSetSpecStrategy{
+			RollingUpdate: *badRollingUpdate,
+		},
+		Replicaset: &datadoghqv1alpha1.ExtendedDaemonSetReplicaSet{},
+		PodByNodeName: map[*NodeItem]*corev1.Pod{
+			testCanaryNodes["a"]: nil,
+		},
+	}
+	daemonset := &datadoghqv1alpha1.ExtendedDaemonSet{}
+	client := fake.NewClientBuilder().Build()
+
+	result, err := ManageDeployment(client, daemonset, params, metaNow)
+
+	// ManageDeployment should return an error for the invalid value.
+	require.Error(t, err)
+
+	// Crucially, result.NewStatus must never be nil — the caller
+	// unconditionally dereferences it to update conditions.
+	require.NotNil(t, result, "ManageDeployment must not return a nil Result")
+	require.NotNil(t, result.NewStatus,
+		"ManageDeployment must return a non-nil NewStatus even on error; "+
+			"a nil value causes a panic in the ERS controller reconcile loop")
+}
+
 func Test_calculateMaxCreation(t *testing.T) {
 	now := time.Now()
 
